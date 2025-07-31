@@ -1,0 +1,48 @@
+﻿version: '3.8'
+
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: complytest-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: ${DB_SA_PASSWORD:-P@$$w0rd123}
+      MSSQL_PID: "Express"
+    ports:
+      - "1433:1433"
+    volumes:
+      - sqlserver_data:/var/opt/mssql
+    healthcheck:
+      test: ["CMD-SHELL", "timeout 1 bash -c '</dev/tcp/localhost/1433'"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    networks:
+      - complytest-network
+    restart: unless-stopped
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: complytest-api
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__DefaultConnection: "Data Source=sqlserver,1433;Initial Catalog=ComplytestDb;User ID=sa;Password=${DB_SA_PASSWORD:-P@$$w0rd123};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=true"
+      RandomStringGeneratorApiUrl: "https://www.random.org/strings/?num=1&len=10&digits=on&upperalpha=on&loweralpha=on&unique=off&format=plain&rnd=new"
+    ports:
+      - "5144:8080"
+    depends_on:
+      - sqlserver
+    networks:
+      - complytest-network
+    restart: unless-stopped
+
+volumes:
+  sqlserver_data:
+
+networks:
+  complytest-network:
+    driver: bridge
